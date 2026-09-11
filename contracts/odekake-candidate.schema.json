@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Odekake Candidate",
+  "type": "object",
+  "required": ["kind", "id", "name", "sources", "confidence"],
+  "properties": {
+    "kind": {"enum": ["event", "venue", "park", "shop", "person"]},
+    "id": {"type": "string", "minLength": 1},
+    "name": {"type": "string", "minLength": 1},
+    "sources": {"type": "array", "items": {"type": "string", "format": "uri"}},
+    "confidence": {"enum": ["high", "medium", "low"]},
+    "discovered_from": {"type": "string"},
+    "checked_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": true
+}

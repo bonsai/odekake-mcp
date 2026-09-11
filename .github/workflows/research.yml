@@ -1,0 +1,40 @@
+name: odekake research loop
+
+on:
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: Exploration seed such as a venue, person, area, or date
+        required: false
+        type: string
+  schedule:
+    - cron: '0 22 * * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read agent contract
+        run: cat .agents/odekake-researcher.md
+
+      - name: Initialize research run
+        env:
+          SEED: ${{ inputs.seed }}
+        run: |
+          mkdir -p .runs
+          printf '%s\n' "{\"seed\":\"${SEED:-scheduled}\",\"status\":\"ready\"}" > .runs/latest.json
+
+      # Next implementation: call domain researchers, normalize candidates,
+      # validate sources, then open a PR instead of mutating production data.
+      - name: Report contract boundary
+        run: |
+          echo "Research agent initialized"
+          echo "Next: discover -> normalize -> validate -> PR"
