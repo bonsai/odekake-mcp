@@ -1,0 +1,90 @@
+version: 1
+name: toritsu-shimokitazawa-gotanda
+purpose: "単純な乗り換えデータ。体験グラフとは分離して、経路探索の基礎データとして使う。"
+date: 2026-09-12
+
+nodes:
+  toritsu-daigaku:
+    type: station
+    name: 都立大学駅
+    lines:
+      - 東急東横線
+
+  shibuya:
+    type: station
+    name: 渋谷駅
+    lines:
+      - 東急東横線
+      - 京王井の頭線
+      - JR山手線
+
+  shimokitazawa:
+    type: station
+    name: 下北沢駅
+    lines:
+      - 京王井の頭線
+      - 小田急線
+
+  gotanda:
+    type: station
+    name: 五反田駅
+    lines:
+      - JR山手線
+      - 東急池上線
+      - 都営浅草線
+
+edges:
+  - from: toritsu-daigaku
+    to: shibuya
+    transport: train
+    line: 東急東横線
+    transfer: false
+
+  - from: shibuya
+    to: shimokitazawa
+    transport: train
+    line: 京王井の頭線
+    transfer: true
+
+  - from: shimokitazawa
+    to: shibuya
+    transport: train
+    line: 京王井の頭線
+    transfer: true
+
+  - from: shibuya
+    to: gotanda
+    transport: train
+    line: JR山手線
+    transfer: true
+
+routes:
+  direct_to_gotanda:
+    from: toritsu-daigaku
+    to: gotanda
+    via:
+      - shibuya
+    transfer_count: 1
+
+  via_shimokitazawa:
+    from: toritsu-daigaku
+    to: gotanda
+    via:
+      - shibuya
+      - shimokitazawa
+      - shibuya
+    transfer_count: 2
+    note: "下北沢を経由する場合は渋谷へ戻ってから山手線で五反田へ向かう。"
+
+  shimokitazawa_to_gotanda:
+    from: shimokitazawa
+    to: gotanda
+    via:
+      - shibuya
+    transfer_count: 1
+
+schema:
+  node: "駅・停留所などの交通拠点"
+  edge: "交通機関による移動"
+  route: "from/to/viaから構成される単純経路"
+  experience: "別レイヤー。data/routes の体験グラフから参照する"
