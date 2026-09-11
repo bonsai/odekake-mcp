@@ -1,262 +1,264 @@
-# date-mcp
+# odekake-mcp
 
-**FE オーケストレーターとして、おでかけ全体を組み立てる MCP。**
+> **ひとりでも、デートでも。**
+>
+> GitHubに住む、おでかけエージェント。
 
-date-mcp 自身がイベントや店の巨大DBを持つのではなく、各ドメインを **BE / DB / Researcher** として分離し、FE オーケストレーターが横断して「今日どこへ行く？」を組み立てる。
+`odekake-mcp` は、場所・時間・人をつないで「今日のおでかけ」を組み立てる **Agent + Workflow** プロジェクトです。
 
-## Architecture
+アプリを中心にするのではなく、**GitHubを作業場・記憶・実行基盤にする**ことを基本方針にします。
 
-```text
-                         date-mcp
-                    🎛 FE Orchestrator
-                           │
-          ┌────────────────┼────────────────┐
-          │                │                │
-       🎭 BE/DB          🌳 BE/DB         ☕ BE/DB
-      owarai-live      tokyo-parks       places
-          │                │                │
-      🔎 Researcher     🔎 Researcher     🔎 Researcher
-          │                │                │
-          └────────────────┼────────────────┘
-                           │
-                 🧩 Normalize / Rank
-                           │
-                    📅 Date Plan
-                           │
-              🚶 Event + Park + Food + Bar
-```
-
-## Responsibility
-
-### date-mcp — FE / Orchestrator
-
-ユーザーから見える「おでかけ体験」を担当する。
-
-- 日付・エリア・ジャンルを受け取る
-- 各ドメインBEへ問い合わせる
-- 候補を共通形式へ正規化する
-- 距離・時間・順番でランキングする
-- ライブを中心に前後の行動を組み立てる
-- 最終的な `GO OUT PLAN` を返す
-
-**date-mcp はデータの所有者ではなく、データを組み合わせる司令塔。**
-
-## Domain BE / DB / Researcher
-
-各ドメインは独立して育てる。
-
-| Domain | BE / DB | Researcher | 主なデータ |
-|---|---|---|---|
-| 🎭 お笑い・落語 | `owarai-live` | performance researcher | 芸人・落語家・ライブ・会場 |
-| 🎤 アイドル | `idol-live` | idol researcher | アイドル・ライブ・会場 |
-| 🎧 DJ | `dj-event` | DJ researcher | DJ・イベント・会場 |
-| 🎨 アート | `art-event` | art researcher | 展示・アートイベント・会場 |
-| 🌳 公園 | `tokyo-parks` | park researcher | 公園・散歩・場所 |
-| ☕ 店 | places domain | place researcher | カフェ・ランチ・バー |
-| 🎭 演劇 | theatre domain | theatre researcher | 劇場・演劇・出演者 |
-
-各 Researcher は「発見」を担当し、BE/DB は「正規化されたデータ」を担当する。
+## GitHubに住む
 
 ```text
-Researcher
-    ↓ discover
-candidate
-    ↓ verify
-BE
-    ↓ normalize
-DB
-    ↓ query
-FE Orchestrator
+                    GitHub
+              ┌─────────────────┐
+              │ Issues           │ ← 探索依頼
+              │ Discussions      │ ← 仮説・相談
+              │ Data             │ ← 事実・候補
+              │ Actions          │ ← 定期実行
+              │ PR               │ ← 検証・レビュー
+              └────────┬────────┘
+                       │
+                 🤖 ODEKAKE AGENT
+                       │
+          ┌────────────┼────────────┐
+          ↓            ↓            ↓
+       📍 LOCATION    🕐 TIME      👤 PEOPLE
+          └────────────┼────────────┘
+                       ↓
+                 🎛 ORCHESTRATOR
+                       ↓
+                 🚶 ODEKAKE PLAN
 ```
 
-## Core flow
+GitHubを単なるソースコード置き場ではなく、**おでかけOSのバックエンド**として使います。
+
+- **Issue** = 「こういうおでかけを探して」
+- **Agent** = 探す・広げる・正規化する・評価する
+- **Workflow** = 定期巡回・更新・検証
+- **Data** = 発見した事実を蓄積
+- **PR** = Agentと人間のレビュー境界
+- **MCP** = 外部AIから呼び出す入口
+
+## Agent model
+
+Agentは一枚岩にしません。探索対象ごとに小さなResearcherを持ち、最後にOrchestratorが組み合わせます。
 
 ```text
-📅 2026-09-13
-📍 三軒茶屋
-        ↓
-🎧 DJ event
-        ↓
-☕ cafe / 🍴 lunch
-        ↓
-🌳 park / 🚶 walk
-        ↓
-🍸 bar
-        ↓
-💑 GO OUT PLAN
-```
-
-イベントを起点に、前後の場所を近づける。
-
-### Distance policy
-
-1. まず会場から徒歩10分圏
-2. 候補が少なければ20分圏
-3. 必要なら駅・公園などの中間地点を探索
-4. 移動時間と営業時間を考慮して順序を決定
-
-## Domain contract
-
-FE はドメインごとの内部DB構造を知らない。
-
-```json
-{
-  "id": "event-001",
-  "kind": "event",
-  "domain": "dj",
-  "title": "DJ Event",
-  "start_at": "2026-09-13T16:00:00+09:00",
-  "end_at": "2026-09-13T22:00:00+09:00",
-  "venue": {
-    "name": "Example Venue",
-    "area": "三軒茶屋",
-    "lat": 35.64,
-    "lng": 139.67
-  },
-  "source": "domain-be"
-}
-```
-
-場所も同じ考え方で共通化する。
-
-```json
-{
-  "id": "place-001",
-  "kind": "place",
-  "domain": "cafe",
-  "name": "Example Cafe",
-  "area": "三軒茶屋",
-  "lat": 35.64,
-  "lng": 139.67,
-  "opening_hours": "...",
-  "source": "places-be"
-}
-```
-
-## Researcher philosophy
-
-Researcher は単なるスクレイパーではない。
-
-```text
-Seed
+seed
  ↓
-Search
+researcher
  ↓
-Discover people / venues / events
+normalize
  ↓
-Expand graph
+validate
  ↓
-Verify source
+commit / PR
  ↓
-Upsert DB
+knowledge graph
+ ↓
+planner
+ ↓
+ODEKAKE PLAN
 ```
 
-たとえば `owarai-live` なら、下北GRIP / DASH を Seed にして、出演芸人 → 別ライブ → 会場 → 新しい出演者、と探索を広げる。
+### Researcher
 
-この探索ロジックは date-mcp に持たせず、各ドメイン Researcher が所有する。
+- イベントを探す
+- 会場を探す
+- 公園・店・飲食店を探す
+- 出演者・アーティストを探す
+- 新しい探索ノードを発見する
 
-## FE Orchestrator API concept
+### Normalizer
+
+異なるドメインの情報を共通モデルへ変換します。
+
+### Validator
+
+日時、会場、URL、重複、信頼度などを確認します。
+
+### Planner
+
+「どこで・いつ・誰に会えるか」を組み合わせ、移動可能な一日のプランへ変換します。
+
+## Data layers
+
+> **DBを一つにするのではなく、体験を一つにする。**
+
+### 📍 LOCATION
+
+`venues / parks / spots / shops / eatin`
+
+### 🕐 TIME
+
+`events / calendar / opening hours`
+
+### 👤 PEOPLE
+
+`artists / comedians / rakugo / idols / DJs / theatre`
+
+### 🎛 ORCHESTRATOR
+
+3つのレイヤーを横断して、おでかけを生成します。
+
+## Modes
 
 ```text
-POST /plan
+👤 SOLO
+  自分のためのおでかけ
+
+👫 DATE
+  ふたりのおでかけ
+
+👥 GROUP
+  友達・仲間のおでかけ
 ```
 
-```json
-{
-  "date": "2026-09-13",
-  "area": "三軒茶屋",
-  "domains": ["dj", "park", "cafe", "bar"],
-  "constraints": {
-    "max_walk_minutes": 15,
-    "include_food": true,
-    "include_walk": true
-  }
-}
-```
+恋愛専用のDateアプリではありません。
 
-Response:
+**ひとりでも、デートでも、グループでも使えるおでかけOS**です。
 
-```json
-{
-  "plan": [
-    {"type": "cafe", "time": "14:00"},
-    {"type": "event", "time": "16:00"},
-    {"type": "park", "time": "18:30"},
-    {"type": "bar", "time": "20:00"}
-  ],
-  "score": 0.91
-}
-```
+## Workflow
 
-## Design principle
-
-### 1. FE は組み合わせる
-
-ユーザー体験、検索条件、ランキング、プランニングを担当。
-
-### 2. BE はドメインを守る
-
-各DBのAPI、正規化、ドメイン固有ルールを担当。
-
-### 3. DB は事実を持つ
-
-イベント、人物、会場、場所、出典を蓄積する。
-
-### 4. Researcher は世界を探索する
-
-Webや公式情報から新しいノードを発見し、検証してDBへ渡す。
-
-## Monorepo にしない理由
-
-ドメインごとのDBとResearcherを独立させることで、
-
-- お笑いだけ先に強くできる
-- アイドルの探索方法を変えても date-mcp は変えない
-- 公園DBを後から追加できる
-- 外部APIや別Researcherへ差し替えられる
-- 各ドメインが自分のデータ品質に責任を持てる
-
-という構造にする。
-
-## Roadmap
-
-### Phase 1 — Contract
-
-- [x] FE / BE / DB / Researcher の責務を分離
-- [ ] 共通 Event / Place schema
-- [ ] domain adapter interface
-
-### Phase 2 — Orchestrator
-
-- [ ] `search_events`
-- [ ] `search_places`
-- [ ] `plan_goout`
-- [ ] distance / time ranking
-
-### Phase 3 — Domain connection
-
-- [ ] `owarai-live`
-- [ ] `idol-live`
-- [ ] `dj-event`
-- [ ] `art-event`
-- [ ] `tokyo-parks`
-- [ ] cafe / lunch / bar domain
-- [ ] theatre domain
-
-### Phase 4 — Research loop
+GitHub Actionsを反復実行のエンジンにします。
 
 ```text
-Researcher → Candidate → Verify → DB
-                         ↑        ↓
-                         └── feedback
+[Schedule / Issue]
+       ↓
+  discover seeds
+       ↓
+  expand graph
+       ↓
+  normalize data
+       ↓
+  validate facts
+       ↓
+  update JSONL
+       ↓
+  open PR
+       ↓
+  human review
+       ↓
+  merge
+       ↓
+  planner sees new knowledge
 ```
 
-最終的には、**各ドメインが世界を調べ、date-mcp がその世界を一日の体験として編集する。**
+Agentが勝手に本番データを書き換えるのではなく、**PRを境界**にします。
+
+## Connected domain repos
+
+```text
+bonsai/odekake-mcp   ← Agent / Workflow / Orchestrator
+        │
+        ├── bonsai/tokyo-parks
+        ├── bonsai/owarai-live
+        ├── bonsai/idol-live
+        ├── bonsai/dj-event
+        └── bonsai/art-event
+```
+
+各Repoは専門DB、`odekake-mcp` はそれらを横断する **体験生成層** です。
+
+## Research graph
+
+Seedは入口であって、探索範囲ではありません。
+
+```text
+seed
+ ↓
+venue / person / event
+ ↓
+related event
+ ↓
+new venue / person
+ ↓
+new event
+ ↓
+...
+```
+
+Agentは検索結果を並べるだけではなく、**人物・会場・主催者・場所を次の探索ノード**として扱います。
+
+## First workflows
+
+- 公園を定期探索
+- お笑い・落語ライブを探索
+- DJイベントを探索
+- アイドルライブを探索
+- アートイベントを探索
+- 会場から出演者を発見
+- 出演者から別イベントを発見
+- イベントから周辺スポットを発見
+- 公園 → カフェ → ライブ → バーの行程を生成
+
+## Workflow contract
+
+```yaml
+workflow:
+  trigger: schedule | issue | manual
+  agent: researcher
+  input:
+    seed: venue | person | area | date
+  steps:
+    - discover
+    - normalize
+    - validate
+    - propose
+    - review
+    - merge
+```
+
+Workflowは「コード」だけでなく、**Agentが何をしてよいかを定義する運用契約**です。
+
+## Human in the loop
+
+```text
+Agent discovers
+      ↓
+Candidate data
+      ↓
+Validation
+      ↓
+PR
+      ↓
+Human review
+      ↓
+Merge
+```
+
+大量探索はAgent、人間は最終判断。
 
 ## Philosophy
 
-> DBを一つにするのではなく、体験を一つにする。
+### 1. GitHubを住処にする
 
-`date-mcp` は「イベント検索サイト」ではない。
+Issue、PR、Actions、JSONL、履歴をAgentの作業環境と記憶として使う。
 
-**お笑い、落語、アイドル、DJ、演劇、アート、公園、カフェ、ランチ、バーという別々の世界を、時間と距離でつないで「今日はこれ」と編集するFEオーケストレーターである。**
+### 2. Seedは広げる
+
+既知の場所だけを検索するのではなく、新しい人物・会場・イベントを探索ノードとして登録する。
+
+### 3. Workflowは習慣をコード化する
+
+「毎朝イベントを探す」「毎週公園を更新する」のような反復作業をActionsへ移す。
+
+### 4. PRは境界
+
+Agentは大量に動き、人間は重要な判断をする。
+
+### 5. 最後に体験へ戻す
+
+最終出力はデータ一覧ではなく、
+
+> **「今日はここへ行こう」**
+
+と言えるおでかけプランです。
+
+## Status
+
+🚧 **Architecture reset — GitHub-native Agent + Workflow foundation**
+
+次の実装では、Agent定義・Workflow定義・共通ContractをRepo内に置き、GitHub Actionsから実行できる最小ループを作ります。
