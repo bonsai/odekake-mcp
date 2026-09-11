@@ -1,0 +1,141 @@
+version: 1
+name: toritsu-shimokitazawa-gotanda
+purpose: "都立大学から下北沢を経由して五反田へ向かう体験グラフ"
+date: 2026-09-12
+
+mode: solo_or_date
+
+goal:
+  destination: gotanda-station
+  required_via:
+    - shimokitazawa-station
+  principle: "駅だけでなく体験もノードにする"
+
+nodes:
+  toritsu-daigaku-station:
+    type: station
+    name: 都立大学駅
+    lines:
+      - 東急東横線
+
+  shibuya-station:
+    type: station
+    name: 渋谷駅
+    lines:
+      - 東急東横線
+      - 京王井の頭線
+      - JR山手線
+
+  shimokitazawa-station:
+    type: station
+    name: 下北沢駅
+    lines:
+      - 京王井の頭線
+      - 小田急線
+
+  shimokitazawa-experience:
+    type: experience
+    name: 下北沢ライブ・街歩き
+    category: music
+    attached_to: shimokitazawa-station
+
+  gotanda-station:
+    type: station
+    name: 五反田駅
+    lines:
+      - JR山手線
+      - 東急池上線
+      - 都営浅草線
+
+  vraiment:
+    type: venue
+    name: music Club&Bar VRAIMENT
+    category: dj_music
+    attached_to: gotanda-station
+    source_repo: bonsai/date-mcp
+
+  ali-ollie:
+    type: venue
+    name: Soul Music BAR Ali-Ollie!!!!
+    category: soul_music
+    attached_to: gotanda-station
+    source_repo: bonsai/date-mcp
+
+edges:
+  - from: toritsu-daigaku-station
+    to: shibuya-station
+    relation: transport
+    transport: 東急東横線
+
+  - from: shibuya-station
+    to: shimokitazawa-station
+    relation: transport
+    transport: 京王井の頭線
+
+  - from: shimokitazawa-station
+    to: shimokitazawa-experience
+    relation: stay
+
+  - from: shimokitazawa-experience
+    to: shibuya-station
+    relation: return_transport
+    transport: 京王井の頭線
+
+  - from: shibuya-station
+    to: gotanda-station
+    relation: transport
+    transport: JR山手線
+
+  - from: gotanda-station
+    to: vraiment
+    relation: experience
+
+  - from: vraiment
+    to: ali-ollie
+    relation: optional_next
+
+route:
+  - toritsu-daigaku-station
+  - shibuya-station
+  - shimokitazawa-station
+  - shimokitazawa-experience
+  - shibuya-station
+  - gotanda-station
+  - vraiment
+
+branches:
+  - id: skip-shimokitazawa
+    when: "下北沢の滞在価値より五反田の時間を優先する"
+    next: gotanda-station
+
+  - id: music-continue
+    when: "五反田で音楽体験を続けたい"
+    next: vraiment
+
+  - id: listening-bar
+    when: "DJより会話・レコード鑑賞へ寄せたい"
+    next: ali-ollie
+
+ax:
+  observe:
+    - travel_time
+    - transfer_count
+    - stay_time
+    - experience_value
+    - next_option_availability
+  reverse_view:
+    - "下北沢を経由することで五反田の夜時間を圧迫しないか"
+    - "移動を減らすことより、途中の体験価値を優先する意味があるか"
+  next_action:
+    - "下北沢の滞在時間を決める"
+    - "五反田到着後の音楽候補を確認する"
+  feedback:
+    - actual_travel_time
+    - actual_stay_time
+    - experience_value
+    - branch_taken
+
+notes:
+  status: provisional
+  source: "2026-09-12 route planning"
+  principle: "Search returns points. odekake graph creates the line."
